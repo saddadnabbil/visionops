@@ -110,7 +110,9 @@ test.describe('role-specific safety operations', () => {
     await expect(page.locator('.secret-callout code')).toContainText('vo_');
 
     await page.getByRole('button', { name: 'Add webhook' }).click();
-    await page.locator('#webhook-form').getByLabel('HTTPS URL').fill(`https://example.test/visionops-${suffix}`);
+    // example.com has stable public DNS. The production API rejects unresolvable
+    // and private destinations to prevent SSRF, so .test is deliberately invalid.
+    await page.locator('#webhook-form').getByLabel('HTTPS URL').fill(`https://example.com/visionops-${suffix}`);
     await page.locator('#webhook-form').getByLabel('Signing secret').fill('browser-e2e-signing-secret');
     await page.getByRole('button', { name: 'Create subscription' }).click();
     await expect(page.getByText('Configuration saved.')).toBeVisible();

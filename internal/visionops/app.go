@@ -198,7 +198,8 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	if !a.allowRate("login:"+clientAddress(r), 10) {
+	rateKey := "login:" + clientAddress(r)
+	if !a.allowRate(rateKey, 10) {
 		jsonOut(w, http.StatusTooManyRequests, map[string]string{"error": "too many sign-in attempts"})
 		return
 	}
@@ -212,6 +213,10 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		jsonOut(w, 401, map[string]string{"error": "invalid credentials"})
 		return
 	}
+	// A successful authentication clears the attempt window. This retains a
+	// per-IP brute-force guard while allowing a shared NAT/proxy to serve many
+	// legitimate users without eventually locking all of them out.
+	a.clearRate(rateKey)
 	jsonOut(w, 200, map[string]string{"token": a.sign(Claims{UserID: id, OrganizationID: org, Role: role, ExpiresAt: time.Now().Add(8 * time.Hour).Unix()})})
 }
 
@@ -398,6 +403,12 @@ func (a *App) allowRate(key string, limit int) bool {
 	v.count++
 	a.rates[key] = v
 	return true
+}
+
+func (a *App) clearRate(key string) {
+	a.rateMu.Lock()
+	defer a.rateMu.Unlock()
+	delete(a.rates, key)
 }
 
 func clientAddress(r *http.Request) string {
