@@ -28,7 +28,7 @@ func integrationApp(t *testing.T) *App {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	a := &App{DB: db, Secret: "integration-secret", IngestKey: "unused", Hub: NewHub(), Log: slog.New(slog.NewTextHandler(os.Stdout, nil))}
+	a := &App{DB: db, Secret: "integration-secret", IngestKey: "unused", Hub: NewHub(), Log: slog.New(slog.NewTextHandler(os.Stdout, nil)), AllowPrivateWebhookTargets: true}
 	if err := a.Migrate(context.Background()); err != nil {
 		t.Fatal(err)
 	}

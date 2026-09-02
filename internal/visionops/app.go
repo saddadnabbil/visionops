@@ -15,7 +15,9 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -24,14 +26,15 @@ import (
 )
 
 type App struct {
-	DB                *sql.DB
-	Secret, IngestKey string
-	Hub               *Hub
-	Log               *slog.Logger
-	rateMu            sync.Mutex
-	rates             map[string]rateWindow
-	failMu            sync.Mutex
-	failureMode       bool
+	DB                         *sql.DB
+	Secret, IngestKey          string
+	AllowPrivateWebhookTargets bool
+	Hub                        *Hub
+	Log                        *slog.Logger
+	rateMu                     sync.Mutex
+	rates                      map[string]rateWindow
+	failMu                     sync.Mutex
+	failureMode                bool
 }
 type rateWindow struct {
 	started time.Time
@@ -195,6 +198,10 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+	if !a.allowRate("login:"+clientAddress(r), 10) {
+		jsonOut(w, http.StatusTooManyRequests, map[string]string{"error": "too many sign-in attempts"})
+		return
+	}
 	var v struct{ Email, Password string }
 	if json.NewDecoder(r.Body).Decode(&v) != nil || strings.TrimSpace(v.Email) == "" || v.Password == "" {
 		jsonOut(w, http.StatusBadRequest, map[string]string{"error": "email and password are required"})
@@ -298,14 +305,14 @@ func (a *App) ingest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rawKey := r.Header.Get("X-API-Key")
-	if !a.allowIngest(rawKey) {
-		jsonOut(w, 429, map[string]string{"error": "ingest rate limit exceeded"})
-		return
-	}
 	keyHash := sha256.Sum256([]byte(rawKey))
 	var org string
 	if err := a.DB.QueryRowContext(r.Context(), "select organization_id from api_keys where key_hash=$1 and active=true", fmt.Sprintf("%x", keyHash)).Scan(&org); err != nil {
 		jsonOut(w, 401, map[string]string{"error": "invalid api key"})
+		return
+	}
+	if !a.allowRate("ingest:"+fmt.Sprintf("%x", keyHash), 60) {
+		jsonOut(w, 429, map[string]string{"error": "ingest rate limit exceeded"})
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
@@ -368,24 +375,40 @@ func (a *App) ingest(w http.ResponseWriter, r *http.Request) {
 	a.Hub.Broadcast(map[string]string{"type": "incident.updated", "incident_id": incident})
 	jsonOut(w, 202, map[string]string{"status": "accepted", "incident_id": incident})
 }
-func (a *App) allowIngest(key string) bool {
+func (a *App) allowRate(key string, limit int) bool {
 	a.rateMu.Lock()
 	defer a.rateMu.Unlock()
 	if a.rates == nil {
 		a.rates = map[string]rateWindow{}
 	}
 	now := time.Now()
+	for existingKey, existing := range a.rates {
+		if now.Sub(existing.started) >= time.Minute {
+			delete(a.rates, existingKey)
+		}
+	}
 	v := a.rates[key]
 	if v.started.IsZero() || now.Sub(v.started) >= time.Minute {
 		a.rates[key] = rateWindow{started: now, count: 1}
 		return true
 	}
-	if v.count >= 60 {
+	if v.count >= limit {
 		return false
 	}
 	v.count++
 	a.rates[key] = v
 	return true
+}
+
+func clientAddress(r *http.Request) string {
+	if ip := net.ParseIP(r.Header.Get("CF-Connecting-IP")); ip != nil {
+		return ip.String()
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 func (a *App) incidents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
@@ -692,7 +715,14 @@ func (a *App) webhooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var x struct{ URL, Secret string }
-	json.NewDecoder(r.Body).Decode(&x)
+	if err := json.NewDecoder(r.Body).Decode(&x); err != nil || len(x.Secret) < 12 {
+		jsonOut(w, 400, map[string]string{"error": "valid HTTPS URL and 12-character signing secret are required"})
+		return
+	}
+	if err := validateWebhookURL(x.URL); err != nil {
+		jsonOut(w, 400, map[string]string{"error": err.Error()})
+		return
+	}
 	org := currentOrg(r.Context())
 	_, err := a.DB.ExecContext(r.Context(), "insert into webhook_subscriptions(organization_id,url,secret) values($1,$2,$3)", org, x.URL, x.Secret)
 	if err != nil {
@@ -840,10 +870,33 @@ func (a *App) logging(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; connect-src 'self'; media-src 'self'")
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		a.Log.Info("request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(start).String())
 	})
+}
+
+func validateWebhookURL(raw string) error {
+	u, err := url.ParseRequestURI(raw)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
+		return errors.New("webhook URL must be an absolute HTTPS URL without credentials")
+	}
+	ips, err := net.LookupIP(u.Hostname())
+	if err != nil || len(ips) == 0 {
+		return errors.New("webhook host could not be resolved")
+	}
+	for _, ip := range ips {
+		if !isPublicIP(ip) {
+			return errors.New("webhook URL must not target a private or local address")
+		}
+	}
+	return nil
+}
+
+func isPublicIP(ip net.IP) bool {
+	return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsUnspecified() && !ip.IsMulticast()
 }
 func jsonOut(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

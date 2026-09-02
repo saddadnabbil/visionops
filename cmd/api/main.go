@@ -46,7 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
-	app := &visionops.App{DB: db, Secret: jwtSecret, IngestKey: ingestKey, Hub: visionops.NewHub(), Log: log}
+	app := &visionops.App{DB: db, Secret: jwtSecret, IngestKey: ingestKey, Hub: visionops.NewHub(), Log: log, AllowPrivateWebhookTargets: env("APP_ENV", "development") != "production"}
 	if err := app.Migrate(context.Background()); err != nil {
 		log.Error("migration failed", "error", err)
 		os.Exit(1)
@@ -54,7 +54,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go app.StartWorker(ctx)
-	srv := &http.Server{Addr: ":8080", Handler: app.Routes(), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Addr: ":8080", Handler: app.Routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	go func() { <-ctx.Done(); srv.Shutdown(context.Background()) }()
 	log.Info("visionops listening", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {

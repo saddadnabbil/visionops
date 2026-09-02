@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -76,7 +77,11 @@ func (a *App) deliver(ctx context.Context, job, org string, payload []byte) erro
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-VisionOps-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
 		req.Header.Set("X-VisionOps-Timestamp", fmt.Sprint(time.Now().Unix()))
-		res, err := (&http.Client{Timeout: 4 * time.Second}).Do(req)
+		client := safeWebhookClient
+		if a.AllowPrivateWebhookTargets {
+			client = &http.Client{Timeout: 4 * time.Second}
+		}
+		res, err := client.Do(req)
 		code := 0
 		msg := ""
 		if err == nil {
@@ -97,6 +102,24 @@ func (a *App) deliver(ctx context.Context, job, org string, payload []byte) erro
 	}
 	return rows.Err()
 }
+
+var safeWebhookClient = &http.Client{Timeout: 4 * time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("webhook host could not be resolved")
+	}
+	for _, ip := range ips {
+		if !isPublicIP(net.IP(ip.AsSlice())) {
+			return nil, fmt.Errorf("webhook host resolved to a private or local address")
+		}
+	}
+	return (&net.Dialer{Timeout: 3 * time.Second}).DialContext(ctx, network, address)
+}}}
+
 func min(a, b int) int {
 	if a < b {
 		return a
