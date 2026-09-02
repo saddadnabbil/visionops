@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="VisionOps workplace-safety incident operations">
+    <title>VisionOps — Safety operations</title>
+    <link rel="stylesheet" href="/style.css?v=20260902-landing-01">
+  </head>
+  <body>
+    <section id="landing-view" class="landing-view" aria-labelledby="landing-title">
+      <header class="landing-nav"><span class="wordmark">VisionOps</span><nav aria-label="Landing navigation"><a href="#how-it-works">How it works</a><a href="#safety-boundary">Safety boundary</a></nav><div><a class="button tertiary compact" href="/openapi.yaml">API contract</a><a class="button primary compact" href="/login">Sign in</a></div></header>
+      <main>
+        <section class="landing-hero"><p class="eyebrow">WORKPLACE SAFETY / INCIDENT OPERATIONS</p><h1 id="landing-title">See what needs<br>attention.</h1><p>VisionOps turns approved camera detections into incidents your safety team can acknowledge, resolve, and audit.</p><div class="landing-actions"><a class="button primary" href="/login">Enter workspace</a><a class="button secondary" href="#how-it-works">See the workflow</a></div></section>
+        <section class="landing-marquee" aria-label="Product capabilities"><span>DETECTION INGEST</span><span>INCIDENT CORRELATION</span><span>HUMAN RESPONSE</span><span>DURABLE DELIVERY</span></section>
+        <section id="how-it-works" class="landing-section landing-flow"><div><p class="eyebrow">THE WORKFLOW</p><h2>From camera event to accountable response.</h2></div><ol><li><span>01</span><h3>Detect</h3><p>An approved producer submits a scoped safety event.</p></li><li><span>02</span><h3>Respond</h3><p>Operators acknowledge, resolve, and leave an audit note.</p></li><li><span>03</span><h3>Deliver</h3><p>Notifications retry through a durable outbox.</p></li></ol></section>
+        <section class="landing-section landing-lime"><div><p class="eyebrow">RECORDED DEMO</p><h2>A real incident workflow. A transparent video scenario.</h2></div><div><p>Use the included licensed worksite footage to follow an event through the Go API, role-aware dashboard, audit timeline, and webhook delivery.</p><span class="landing-disclosure">RECORDED SCENARIO / NOT LIVE CCTV</span></div></section>
+        <section id="safety-boundary" class="landing-section landing-navy"><div><p class="eyebrow">SAFETY BOUNDARY</p><h2>Human judgment stays in the loop.</h2></div><p>VisionOps does not identify faces. Recorded demo events are labelled clearly; a production vision model requires authorised footage, evaluation, privacy controls, and operator review.</p></section>
+        <section class="landing-cta"><p class="eyebrow">READY TO EXPLORE</p><h2>Enter the safety workspace.</h2><a class="button primary" href="/login">Sign in to demo</a></section>
+      </main>
+      <footer class="landing-footer"><span class="wordmark">VisionOps</span><span>BACKEND-FIRST SAFETY OPERATIONS</span><a href="/openapi.yaml">OpenAPI contract</a></footer>
+    </section>
+    <section id="login-view" class="login-view" aria-labelledby="login-title" hidden>
+      <header class="login-nav"><a class="wordmark" href="/">VisionOps</a><a class="button secondary" href="/openapi.yaml">API contract</a></header>
+      <main class="login-layout">
+        <div class="login-story">
+          <p class="eyebrow">WORKPLACE SAFETY / OPERATIONS</p>
+          <h1 id="login-title">See what needs attention.</h1>
+          <p>Turn AI camera detections into incidents your team can acknowledge, resolve, and audit.</p>
+        </div>
+        <form id="login-form" class="login-card">
+          <div><p class="eyebrow">SIGN IN</p><h2>Enter your workspace</h2><p class="form-intro">Use your email and password. Account shortcuts only fill the form.</p></div>
+          <label>Email<input id="email" name="email" type="email" autocomplete="username" required value="operator@acme.test"></label>
+          <label>Password<input id="password" name="password" type="password" autocomplete="current-password" required value="demo-password"></label>
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+          <button class="button primary full" type="submit">Sign in</button>
+          <fieldset class="demo-accounts"><legend>Workspace accounts</legend><div id="demo-role-buttons"></div><p>All local workspace accounts use <code>demo-password</code>.</p></fieldset>
+        </form>
+      </main>
+    </section>
+
+    <div id="app" class="app" hidden>
+      <header class="app-header">
+        <button id="menu-toggle" class="icon-button menu-toggle" aria-label="Open navigation" aria-expanded="false">☰</button>
+        <a class="wordmark" href="#/overview">VisionOps</a>
+        <div class="app-header-context"><span id="connection" class="connection" data-state="connecting">Connecting</span><span id="header-role" class="role-pill"></span><button id="logout" class="button secondary compact">Sign out</button></div>
+      </header>
+      <div class="marquee" aria-hidden="true"><span>WORKPLACE SAFETY</span><span>INCIDENT OPERATIONS</span><span>DURABLE DELIVERY</span><span>REAL-TIME RESPONSE</span></div>
+      <div class="app-layout">
+        <aside id="sidebar" class="sidebar" aria-label="Primary navigation">
+          <div class="workspace"><span class="eyebrow">WORKSPACE</span><strong id="organization-name"></strong><span id="user-email"></span></div>
+          <nav id="primary-nav"></nav>
+          <div class="sidebar-foot"><span class="eyebrow">SIGNED IN AS</span><strong id="sidebar-role"></strong></div>
+        </aside>
+        <button id="nav-scrim" class="nav-scrim" aria-label="Close navigation" tabindex="-1"></button>
+        <main id="page" class="page" tabindex="-1" aria-live="polite"></main>
+      </div>
+    </div>
+
+    <dialog id="incident-dialog" class="detail-dialog" aria-labelledby="detail-title"><div id="detail-body"></div></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

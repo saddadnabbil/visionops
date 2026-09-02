@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), organization_id uuid NOT NULL REFERENCES organizations(id), email text NOT NULL, password_hash text NOT NULL, role text NOT NULL CHECK (role IN ('admin','operator','supervisor','viewer')), created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(organization_id,email));
+CREATE TABLE IF NOT EXISTS api_keys (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), organization_id uuid NOT NULL REFERENCES organizations(id), name text NOT NULL, key_hash text NOT NULL UNIQUE, active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE incident_activity ADD COLUMN IF NOT EXISTS actor_user_id uuid REFERENCES users(id);

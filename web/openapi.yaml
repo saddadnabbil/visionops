@@ -1,0 +1,93 @@
+openapi: 3.0.3
+info:
+  title: VisionOps API
+  version: 1.0.0
+  description: Workplace-safety incident ingestion and operations API.
+servers:
+  - url: http://localhost:18080/api/v1
+paths:
+  /auth/login:
+    post:
+      summary: Exchange email/password credentials for an 8-hour demo bearer token
+  /auth/me:
+    get:
+      summary: Return the authenticated user's session profile and organization
+      security: [{bearerAuth: []}]
+  /ingest/detections:
+    post:
+      summary: Ingest an idempotent AI detection event
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id, camera_id, rule]
+              properties:
+                event_id: {type: string}
+                camera_id: {type: string, format: uuid}
+                rule: {type: string, enum: [missing_ppe, restricted_area, crowding]}
+                severity: {type: string, enum: [low, medium, high, critical]}
+                observed_at: {type: string, format: date-time}
+  /ingest/cameras:
+    get:
+      summary: Discover cameras owned by an ingestion key's organization
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema: {type: string}
+  /incidents:
+    get: {summary: List correlated incidents, security: [{bearerAuth: []}]}
+  /incidents/{id}:
+    get: {summary: Read an incident and audit activity, security: [{bearerAuth: []}]}
+  /incidents/{id}/acknowledge:
+    post: {summary: Acknowledge an open incident, security: [{bearerAuth: []}]}
+  /incidents/{id}/resolve:
+    post: {summary: Resolve an incident, security: [{bearerAuth: []}]}
+  /jobs:
+    get: {summary: Inspect durable outbox jobs, security: [{bearerAuth: []}]}
+  /jobs/{id}/replay:
+    post: {summary: Replay a dead-letter job, security: [{bearerAuth: []}]}
+  /deliveries:
+    get: {summary: Inspect webhook delivery attempts, security: [{bearerAuth: []}]}
+  /cameras:
+    get: {summary: List tenant cameras with heartbeat-derived health, security: [{bearerAuth: []}]}
+    post: {summary: Register a camera (admin only), security: [{bearerAuth: []}]}
+  /ingest/camera-heartbeats:
+    post:
+      summary: Record a tenant-owned camera heartbeat
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema: {type: string}
+  /webhooks:
+    get: {summary: List webhook subscriptions (admin only), security: [{bearerAuth: []}]}
+    post: {summary: Create webhook subscription (admin only), security: [{bearerAuth: []}]}
+  /users:
+    get: {summary: List organization users, security: [{bearerAuth: []}]}
+    post:
+      summary: Create an organization user (admin only)
+      security: [{bearerAuth: []}]
+  /api-keys:
+    get: {summary: List organization ingestion keys without their secret value, security: [{bearerAuth: []}]}
+    post:
+      summary: Create an ingestion key and return its raw value once (admin only)
+      security: [{bearerAuth: []}]
+  /metrics/operations:
+    get: {summary: Return safety-response metrics, security: [{bearerAuth: []}]}
+  /metrics/observability:
+    get: {summary: Return tenant operational health counters, security: [{bearerAuth: []}]}
+  /events:
+    get: {summary: Open server-sent live update stream, security: [{bearerAuth: []}]}
+  /demo/failure-mode:
+    post: {summary: Enable/disable demo webhook failure mode (admin only), security: [{bearerAuth: []}]}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}

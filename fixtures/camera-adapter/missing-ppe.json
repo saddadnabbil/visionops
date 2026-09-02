@@ -1,0 +1,12 @@
+[
+  {
+    "after_seconds": 5,
+    "rule": "missing_ppe",
+    "severity": "high",
+    "metadata": {
+      "confidence": 0.94,
+      "fixture": true,
+      "evidence": "synthetic-demo-only"
+    }
+  }
+]

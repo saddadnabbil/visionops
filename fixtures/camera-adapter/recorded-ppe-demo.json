@@ -1,0 +1,18 @@
+{
+  "mode": "recorded_scenario",
+  "source_asset": "construction-site-wide-recorded-scenario.mp4",
+  "source_url": "https://mixkit.co/free-stock-video/construction-workers-at-a-house-under-construction-1459/",
+  "disclosure": "RECORDED SCENARIO / SIMULATED DETECTOR — NOT LIVE CCTV",
+  "events": [
+    {
+      "after_seconds": 2,
+      "rule": "missing_ppe",
+      "severity": "high",
+      "metadata": {
+        "ppe_item": "hard_hat",
+        "confidence": 0.94,
+        "scenario_id": "wide-worksite-missing-hard-hat"
+      }
+    }
+  ]
+}

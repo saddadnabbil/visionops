@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-visionops}
+      POSTGRES_USER: ${POSTGRES_USER:-visionops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-visionops}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visionops -d visionops"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    ports: ["5433:5432"]
+  api:
+    build: .
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgres://visionops:visionops@db:5432/visionops?sslmode=disable}
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-change-me}
+      INGEST_API_KEY: ${INGEST_API_KEY:-vo_demo_ingest}
+    ports: ["18080:8080"]
+    depends_on:
+      db:
+        condition: service_healthy
+  camera-adapter:
+    build:
+      context: .
+      args:
+        TARGET: camera-adapter
+    profiles: ["camera-demo"]
+    environment:
+      VISIONOPS_API_URL: http://api:8080
+      VISIONOPS_API_KEY: ${INGEST_API_KEY:-vo_demo_ingest}
+      CAMERA_ADAPTER_CAMERA_NAME: Line A Entrance
+      CAMERA_ADAPTER_SCENARIO: /fixtures/camera-adapter/missing-ppe.json
+      CAMERA_ADAPTER_HEARTBEAT_INTERVAL: 15s
+    depends_on:
+      api:
+        condition: service_started
+  recorded-demo-adapter:
+    build:
+      context: .
+      args:
+        TARGET: camera-adapter
+    profiles: ["recorded-demo"]
+    environment:
+      VISIONOPS_API_URL: http://api:8080
+      VISIONOPS_API_KEY: ${INGEST_API_KEY:-vo_demo_ingest}
+      CAMERA_ADAPTER_CAMERA_NAME: Line A Entrance
+      CAMERA_ADAPTER_SCENARIO: /fixtures/camera-adapter/recorded-ppe-demo.json
+      CAMERA_ADAPTER_HEARTBEAT_INTERVAL: 15s
+    depends_on:
+      api:
+        condition: service_started

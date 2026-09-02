@@ -1,0 +1,22 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Local demo footage is intentionally not redistributed with the repository.
+assets/demo/*
+!assets/demo/.gitkeep
+web/assets/demo/*
+!web/assets/demo/.gitkeep
+
+# Dependency and test output
+node_modules/
+test-results/
+playwright-report/
+coverage.out
+*.log
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
