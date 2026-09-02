@@ -25,6 +25,10 @@ services:
       INGEST_API_KEY: ${INGEST_API_KEY:?set INGEST_API_KEY in .env}
     ports:
       - "127.0.0.1:${VISIONOPS_PORT:-18081}:8080"
+    volumes:
+      # Licensed demo media is deployed to the host separately and intentionally
+      # excluded from Git/source images.
+      - ../web/assets/demo:/web/assets/demo:ro
     depends_on:
       db:
         condition: service_healthy

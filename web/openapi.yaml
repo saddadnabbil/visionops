@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: Workplace-safety incident ingestion and operations API.
 servers:
-  - url: http://localhost:18080/api/v1
+  - url: /api/v1
+    description: Same-origin API for local and public deployments.
 paths:
   /auth/login:
     post:
@@ -88,6 +89,8 @@ paths:
     get: {summary: Open server-sent live update stream, security: [{bearerAuth: []}]}
   /demo/failure-mode:
     post: {summary: Enable/disable demo webhook failure mode (admin only), security: [{bearerAuth: []}]}
+  /demo/detections:
+    post: {summary: Create a tenant-scoped recorded demo detection without exposing an ingestion key, security: [{bearerAuth: []}]}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer}

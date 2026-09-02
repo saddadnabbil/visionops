@@ -1,6 +1,7 @@
 package visionops
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -144,6 +145,14 @@ func (a *App) seed(ctx context.Context) error {
 	} else if err := a.DB.QueryRowContext(ctx, "select id from organizations order by name limit 1").Scan(&org); err != nil {
 		return err
 	}
+	// The local receiver is a developer fixture. It must not remain enabled in
+	// the public demo because production webhook policy intentionally blocks
+	// private destinations.
+	if !a.AllowPrivateWebhookTargets {
+		if _, err := a.DB.ExecContext(ctx, "delete from webhook_subscriptions where url='http://localhost:8080/demo/webhook-receiver'"); err != nil {
+			return err
+		}
+	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte("demo-password"), bcrypt.DefaultCost)
 	for email, role := range map[string]string{"admin@acme.test": "admin", "operator@acme.test": "operator", "supervisor@acme.test": "supervisor", "viewer@acme.test": "viewer"} {
 		if _, err := a.DB.ExecContext(ctx, "insert into users(organization_id,email,password_hash,role) values($1,$2,$3,$4) on conflict(organization_id,email) do nothing", org, email, string(hash), role); err != nil {
@@ -159,6 +168,7 @@ func (a *App) Routes() http.Handler {
 	m.HandleFunc("/health", a.health)
 	m.HandleFunc("/demo/webhook-receiver", a.demoReceiver)
 	m.HandleFunc("/api/v1/demo/failure-mode", a.requireRoles(a.setFailureMode, "admin"))
+	m.HandleFunc("/api/v1/demo/detections", a.requireRoles(a.simulateDetection, "admin", "operator"))
 	m.HandleFunc("/api/v1/auth/login", a.login)
 	m.HandleFunc("/api/v1/auth/me", a.auth(a.profile))
 	m.HandleFunc("/api/v1/ingest/detections", a.ingest)
@@ -304,6 +314,36 @@ func orgID(ctx context.Context, db *sql.DB) (string, error) {
 	return id, err
 }
 func currentOrg(ctx context.Context) string { return ctx.Value(claimKey{}).(Claims).OrganizationID }
+
+// simulateDetection keeps the public demo useful without exposing its ingestion
+// key to the browser. It deliberately uses the same ingest handler and tenant
+// camera validation as an external AI Camera Service.
+func (a *App) simulateDetection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var cameraID string
+	if err := a.DB.QueryRowContext(r.Context(), "select id from cameras where organization_id=$1 order by created_at limit 1", currentOrg(r.Context())).Scan(&cameraID); err != nil {
+		jsonOut(w, http.StatusBadRequest, map[string]string{"error": "register a camera before simulating a detection"})
+		return
+	}
+	payload, _ := json.Marshal(Detection{
+		EventID:    "demo-" + fmt.Sprintf("%d", time.Now().UnixNano()),
+		CameraID:   cameraID,
+		Rule:       "missing_ppe",
+		Severity:   "high",
+		ObservedAt: time.Now().UTC(),
+		Metadata:   map[string]any{"source": "authenticated-demo-simulation"},
+	})
+	request := r.Clone(r.Context())
+	request.Header = r.Header.Clone()
+	request.Header.Set("X-API-Key", a.IngestKey)
+	request.Body = io.NopCloser(bytes.NewReader(payload))
+	request.ContentLength = int64(len(payload))
+	a.ingest(w, request)
+}
+
 func (a *App) ingest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(405)

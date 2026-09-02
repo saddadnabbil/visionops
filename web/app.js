@@ -60,24 +60,43 @@ function syncActiveNavigation() { document.querySelectorAll("[data-route]").forE
 function closeNavigation() { $("#sidebar").dataset.open = "false"; $("#menu-toggle").setAttribute("aria-expanded", "false"); }
 
 function pageHeader(title, intro, action = "") { return `<header class="page-header"><div><p class="eyebrow">${routeEyebrows[currentRoute()]}</p><h1>${title}</h1><p>${intro}</p></div>${action ? `<div class="page-actions">${action}</div>` : ""}</header>`; }
-function loadingView() { return `<div class="state-panel"><span class="spinner" aria-hidden="true"></span><h2>Loading operations</h2><p>Keeping the current workspace in context.</p></div>`; }
+function loadingView() { return `<section class="state-panel loading-shell" aria-live="polite" aria-busy="true"><p class="eyebrow">PREPARING WORKSPACE</p><div class="loading-lines" aria-hidden="true"><span></span><span></span><span></span></div><h2>Getting operations ready.</h2><p>Loading only the information this view needs.</p></section>`; }
 function errorView(error) { return `<div class="state-panel error-state"><p class="eyebrow">COULD NOT LOAD</p><h2>Operations are temporarily unavailable.</h2><p>${escapeHTML(error.message)}</p><button class="button primary" data-action="retry">Try again</button></div>`; }
 function statusBadge(status) { return `<span class="status-badge" data-status="${escapeHTML(status)}"><span aria-hidden="true"></span>${escapeHTML(titleCase(status))}</span>`; }
 function selectMenu({ id, name = "", label, options, value = "", filter = false }) { const selected = options.find(option => option.value === value) || options[0]; return `<div class="select-menu" data-select${filter ? " data-incident-filter" : ""}><input type="hidden" ${name ? `name="${escapeHTML(name)}"` : ""} value="${escapeHTML(selected.value)}"><button id="${escapeHTML(id)}" class="select-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>${escapeHTML(selected.label)}</span><span class="select-chevron" aria-hidden="true">⌄</span></button><div class="select-options" role="listbox" aria-labelledby="${escapeHTML(id)}" hidden>${options.map(option => `<button type="button" role="option" aria-selected="${option.value === selected.value}" data-select-option="${escapeHTML(option.value)}">${escapeHTML(option.label)}</button>`).join("")}</div></div>`; }
 function filterIncidents(value) { $("#incident-list").innerHTML = state.incidents.filter(item => value === "all" || item.status === value).map(incidentRow).join("") || `<div class="empty-state"><h3>No matching incidents</h3><p>Choose another queue state.</p></div>`; }
-async function loadCore() {
-  const [incidents, cameras, jobs, deliveries, operations, observability] = await Promise.all([api("/incidents?limit=100"), api("/cameras"), api("/jobs"), api("/deliveries"), api("/metrics/operations"), api("/metrics/observability")]);
-  Object.assign(state, { incidents, cameras, jobs, deliveries, operations, observability });
+async function loadCore(route) {
+  if (route === "overview") {
+    const [incidents, cameras, jobs] = await Promise.all([api("/incidents?limit=100"), api("/cameras"), api("/jobs")]);
+    Object.assign(state, { incidents, cameras, jobs });
+    return;
+  }
+  if (route === "incidents") { state.incidents = await api("/incidents?limit=100"); return; }
+  if (route === "cameras") { state.cameras = await api("/cameras"); return; }
+  if (route === "delivery") {
+    const [jobs, deliveries, observability] = await Promise.all([api("/jobs"), api("/deliveries"), api("/metrics/observability")]);
+    Object.assign(state, { jobs, deliveries, observability });
+    return;
+  }
+  if (route === "analytics") {
+    const [operations, observability] = await Promise.all([api("/metrics/operations"), api("/metrics/observability")]);
+    Object.assign(state, { operations, observability });
+  }
 }
 async function renderRoute(options = {}) {
   if (!state.profile) return; const route = currentRoute();
   if (!allowedRoutes().includes(route)) { location.hash = `#/${roleHome[state.profile.role]}`; return; }
   if (!options.silent) closeNavigation();
-  syncActiveNavigation(); const page = $("#page"); if (!options.silent) page.innerHTML = loadingView();
+  syncActiveNavigation(); const page = $("#page");
+  // Keep an already-rendered route visible during navigation. The initial shell
+  // communicates progress without a spinner that can look frozen on a slow request.
+  if (!options.silent && !page.childElementCount) page.innerHTML = loadingView();
   try {
-    state.loading = true; await loadCore();
+    state.loading = true; await loadCore(route);
     const renderers = { overview: renderOverview, incidents: renderIncidents, cameras: renderCameras, delivery: renderDelivery, analytics: renderAnalytics, organization: renderOrganization };
-    await renderers[route](); page.focus({ preventScroll: true });
+    await renderers[route]();
+    if (!options.silent) window.scrollTo({ top: 0, behavior: "auto" });
+    page.focus({ preventScroll: true });
   } catch (error) { if (error.status === 401) return signOut(); page.innerHTML = errorView(error); }
   finally { state.loading = false; }
 }
@@ -136,9 +155,8 @@ async function showIncident(id) {
   } catch (error) { notify(error.message, "error"); }
 }
 async function simulateDetection() {
-  const camera = state.cameras[0]; if (!camera) return notify("Register a camera before simulating a detection.", "error");
-  const response = await fetch("/api/v1/ingest/detections", { method: "POST", headers: { "Content-Type": "application/json", "X-API-Key": "vo_demo_ingest" }, body: JSON.stringify({ event_id: `web-${crypto.randomUUID()}`, camera_id: camera.id, rule: "missing_ppe", severity: "high", metadata: { source: "manual-operator-simulation" } }) });
-  if (!response.ok) return notify("Detection simulation failed.", "error"); notify("Detection accepted and queued for delivery.", "success"); await renderRoute({ silent: true });
+  try { await api("/demo/detections", { method: "POST" }); notify("Detection accepted and queued for delivery.", "success"); await renderRoute({ silent: true }); }
+  catch (error) { notify(error.message, "error"); }
 }
 async function mutateIncident(id, action) {
   const note = new FormData($("#incident-action-form")).get("note") || "";
