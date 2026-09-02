@@ -116,3 +116,4 @@ See [DESIGN.md](DESIGN.md) for the local design-system and responsive implementa
 - [Operations and release plan](docs/OPERATIONS.md)
 - [Camera adapter pilot](docs/CAMERA-ADAPTER.md)
 - [Recorded-demo asset policy](docs/DEMO-ASSETS.md)
+- [Self-hosted Docker and Cloudflare guide](docs/SELF-HOSTED-DEPLOYMENT.md)

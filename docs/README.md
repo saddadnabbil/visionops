@@ -26,3 +26,4 @@ locally and on GitHub.
 - [Camera adapter](CAMERA-ADAPTER.md)
 - [Recorded PPE demo](RECORDED-PPE-DEMO-PLAN.md)
 - [Recorded-demo assets](DEMO-ASSETS.md)
+- [Self-hosted Docker and Cloudflare guide](SELF-HOSTED-DEPLOYMENT.md)
