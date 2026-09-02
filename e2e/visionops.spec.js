@@ -72,6 +72,18 @@ test.describe('role-specific safety operations', () => {
     await expect(page.getByRole('dialog').getByRole('button', { name: 'Resolve incident', exact: true })).toHaveCount(0);
   });
 
+  test('incident detail locks the page and closes when its overlay is clicked', async ({ page }) => {
+    await login(page, 'Viewer');
+    await navigate(page, 'Incidents');
+    await page.locator('[data-incident-id]').first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('body')).toHaveClass(/modal-open/);
+    await page.mouse.click(10, 5);
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('body')).not.toHaveClass(/modal-open/);
+  });
+
   test('camera route discloses the recorded scenario and serves the wide worksite preview', async ({ page }) => {
     await login(page, 'Viewer');
     await navigate(page, 'Cameras');

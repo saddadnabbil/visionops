@@ -152,6 +152,7 @@ async function showIncident(id) {
     const actions = canRespond() && incident.status !== "resolved" ? `<form id="incident-action-form" class="resolution-form"><label>Operator note<textarea name="note" placeholder="Record what happened and what action was taken"></textarea></label><div class="form-actions">${incident.status === "open" ? `<button class="button secondary" type="button" data-incident-action="acknowledge" data-id="${incident.id}">Acknowledge</button>` : ""}<button class="button primary" type="button" data-incident-action="resolve" data-id="${incident.id}">Resolve incident</button></div></form>` : `<div class="read-only-note"><strong>${incident.status === "resolved" ? "Resolution" : "Read-only access"}</strong><p>${escapeHTML(incident.resolution_note || (canRespond() ? "No resolution note." : "Your role can review this incident but cannot change it."))}</p></div>`;
     $("#detail-body").innerHTML = `<div class="dialog-head"><div><p class="eyebrow">INCIDENT DETAIL</p><h2 id="detail-title">${escapeHTML(titleCase(incident.title))}</h2></div><button class="icon-button" data-action="close-detail" aria-label="Close incident detail">×</button></div><div class="detail-summary">${statusBadge(incident.status)}<span class="severity" data-severity="${incident.severity}">${escapeHTML(incident.severity)}</span><p>${escapeHTML(incident.camera.name)} · ${escapeHTML(incident.camera.location)}</p><dl><div><dt>Occurrences</dt><dd>${incident.occurrences}</dd></div><div><dt>First seen</dt><dd>${formatDate(incident.first_seen_at)}</dd></div><div><dt>Last seen</dt><dd>${formatDate(incident.last_seen_at)}</dd></div></dl></div><section class="timeline"><p class="eyebrow">ACTIVITY</p><ol>${incident.activity.map(activity => `<li><span></span><div><strong>${escapeHTML(titleCase(activity.type))}</strong><p>${escapeHTML(activity.actor)}${activity.note ? ` · ${escapeHTML(activity.note)}` : ""}</p><time>${formatDate(activity.created_at)}</time></div></li>`).join("")}</ol></section>${actions}`;
     $("#incident-dialog").showModal();
+    document.body.classList.add("modal-open");
   } catch (error) { notify(error.message, "error"); }
 }
 async function simulateDetection() {
@@ -209,6 +210,13 @@ $("#menu-toggle").addEventListener("click", () => { const open = $("#sidebar").d
 $("#nav-scrim").addEventListener("click", closeNavigation); $("#primary-nav").addEventListener("click", closeNavigation); $("#page").addEventListener("click", handlePageClick); $("#page").addEventListener("submit", handlePageSubmit);
 document.addEventListener("click", event => { if (!event.target.closest("[data-select]")) { document.querySelectorAll(".select-options").forEach(item => item.hidden = true); document.querySelectorAll(".select-trigger").forEach(item => item.setAttribute("aria-expanded", "false")); } });
 document.addEventListener("keydown", event => { if (event.key === "Escape") { document.querySelectorAll(".select-options").forEach(item => item.hidden = true); document.querySelectorAll(".select-trigger").forEach(item => item.setAttribute("aria-expanded", "false")); } });
-$("#incident-dialog").addEventListener("click", event => { if (event.target.dataset.action === "close-detail") $("#incident-dialog").close(); const action = event.target.dataset.incidentAction; if (action) mutateIncident(event.target.dataset.id, action); });
+$("#incident-dialog").addEventListener("click", event => {
+  const dialog = $("#incident-dialog");
+  // A click on the native dialog backdrop is retargeted to the dialog itself.
+  if (event.target === dialog || event.target.dataset.action === "close-detail") dialog.close();
+  const action = event.target.dataset.incidentAction;
+  if (action) mutateIncident(event.target.dataset.id, action);
+});
+$("#incident-dialog").addEventListener("close", () => document.body.classList.remove("modal-open"));
 window.addEventListener("hashchange", () => { if (!state.profile) return location.pathname === "/login" ? showLogin() : showLanding(); renderRoute(); });
 (async function boot() { if (!state.token) return location.pathname === "/login" ? showLogin() : showLanding(); try { state.profile = await api("/auth/me"); showApp(); } catch { signOut(); } })();
